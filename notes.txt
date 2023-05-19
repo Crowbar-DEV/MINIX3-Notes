@@ -1,0 +1,562 @@
+Operating Systems Design and Implementation 3rd Edition By Tanenbaum, Woodhull:
+
+Processes
+==========================================================
+	process:
+	a program in execution
+
+		address space(core image):
+		list of memory locations the process
+		may read and write to
+		contains executable, program data,
+		its stack
+
+		process table entry:
+		information about a process excluding
+		the data within its address space
+
+	also associated with a process is some set of
+	registers, and all other needed info to run a
+	program.
+
+
+	alarm signal: a signal sent to a process which
+	temporarily stops execution, saves state, and
+	begins a special signal handling procedure, such
+	as retransmitting a presumably lost message.
+
+	signals are essentially the software version of
+	hardware interrupts.
+
+	many hardware traps such as an invalid instruction
+	or invalid address are also converted to signals.
+
+	UID: each person authorized to use a system is 
+	assigned an identification known as a UID. A process
+	started has the UID of the user who started it.
+
+	GID: users can also be members of groups, identified
+	by a GID
+
+	superuser: special user who can violate many of the
+	protection rules
+
+Files
+==========================================================
+	major function of an os is to abstract the details
+	of the oddities and complexities involved with disks
+	and other i/o devices. System calls are needed to 
+	read, write, create, and remove files.
+
+	for a file to be read, it must be opened, and after
+	read it should be closed. calls are provided for
+	these functions.
+
+	directory:
+	way of grouping files together
+
+	process and file hierarchies are both organized as
+	trees. However, process hierarchies are usually 
+	short lived and usually no more than 3 layers 
+	deep. While file hierarchies are long lived and
+	can go many many layers deep.
+
+	ownership and privilege also vary between Processes
+	and files.
+
+	each process has a current working directory, this
+	way paths can be found from the current WD, as 
+	apposed to using the full path from the root.
+
+	files in minix are protected by 11 bit binary
+	protection codes. The protection code consists
+	of three 3-bit fields. One for the owner of the file
+	one for the other users of the group, and one for
+	all users.
+
+	rwxr-x--x
+
+	owner: rwx
+	group: r-x
+	all: --x
+	
+	for a directory, x indicates search permission
+
+	before file can be read, it must be opened, upon
+	doing so, permissions are checked. If access is 
+	granted, the system returns an integer called a
+	file descriptor to use in following operations.
+	if access is denied, -1(error) is returned.
+	
+	mounted file system: 
+	on minix a file system on a drive may be mounted
+	to the main tree.
+
+	fs on some drive
+	       x
+	      / \
+	     o   o
+
+	main tree before mount       after mount
+	          1                       1
+                 / \                     / \
+                2   3                   2   3(x)  
+		                           / \
+					  o   o
+	
+	special file:
+	provided to make i/o devices look like
+	files. This allows the user to read and write
+	to i/o devices using the same system calls one 
+	would use to read/write to a normal file.
+
+		block special file:
+		model devices that consist of a collection
+		of randomly accessable blocks
+
+		character special file:
+		used to model devices that accept or 
+		output a character stream.
+
+	special files are usually kept in /dev
+
+	pipe: pseudofile that can connect two Processes,
+	process a writes to the pipe like a normal file
+	using the system calls normally used. Process B 
+	will read from the pipe using the system calls 
+	normally used. The processes do not explicitly know
+	they are reading/writing to a pipe unless making
+	a special sys call.
+
+
+The Shell
+===========================================================
+	the shell is not part of the operating system
+	but makes use of many system calls.
+
+	when a command is run in the shell, the shell creates
+	a child process running that command, and waits for
+	its completion.
+
+	can specify for stdout to be redirected to a file
+
+		date>file
+
+	stdin can also be redirected
+
+		sort<file1>file2
+
+	this feeds the stdin from file1 into sort which
+	outputs its stdout to file2
+
+
+System Calls
+============================================================
+	system calls can be defined as the interface 
+	between the os and applications.
+
+	when a sys call is made, control is transferred
+	to os. Os figures out what the process wants by
+	inspecting the parameters of the system call,
+	it then carries out the sys call and returns control
+	to the instruction following the sys call.
+
+	read sys call:
+	parameters
+	1 - file
+	2 - buffer
+	3 - number of bytes to read
+
+	in C
+
+	count = read(file, buffer, nbytes)
+
+	the sys call returns the number of bytes read in 
+	count. If the sys call cannot be carried out, -1 
+	is returned to count signifying an error. The error 
+	number is then stored in a global variable 'errno'
+
+	MINIX 3 has a total of 53 main system calls
+
+	the POSIX standard specifies a bunch a procedures
+	that a conformant system must supply, but does
+	not necessarily define whether they must be sys
+	calls, library calls, or something else.
+
+	Sys Calls for Process Management
+	================================
+
+	pid = fork()            Create a child process 
+				identical to the parent
+	
+	-fork is the only way to start a new process in
+	MINIX. It creates a duplicate of the original 
+	process, which includes file descriptors, registers,
+	etc. fork returns a value equal to zero in the 
+	child, and equal to the PID of the child in the 
+	parent.
+
+	pid = waitpid(pid, &statloc, opts) 
+				Wait for a child to terminate
+	
+	-waitpid waits for a child process to terminate
+	when it completes, the address pointed to by 
+	'statloc' will be set to the childs exit status.
+
+	s = wait(&status) 	Old version of waitpid
+
+	s = execve(name, argv, envp) 
+				Replace a process core image
+	
+	-execve causes the entire core image of the process to 
+	be replaced by the specified file in 'name'. has
+	three parameters, the name of the file to be executed,
+	a pointer to the argument array, and a pointer to the 
+	environment array. execl execv execle execve all allow
+	the parameters to be omitted or specified in diff ways.
+
+	exit(status) 		Terminate process execution 
+				and return status
+
+	size = brk(addr) 	Set the size of the data 
+				segment
+
+	pid = getpid() 		Return the caller’s 
+				process id
+
+	pid = getpgrp() 	Return the id of the 
+				caller’s process group
+				
+	pid = setsid() 		Create a new session and 
+				return its proc. group id
+
+	l = ptrace(req, pid, addr, data) 
+				Used for debugging
+
+	
+	highly simplified example of how a shell may use
+	fork, waitpid, and execve.
+	================================================
+	#define TRUE 1
+
+	while (TRUE) { 					/ * repeat forever * /
+		type_prompt( ); 			/ * display prompt on the screen * /
+		read_command(command, parameters); 	/ * read input from terminal * /
+
+		if (fork( ) != 0) { 			/ * fork off child process * /
+			/ * Parent code. * /
+			waitpid(−1, &status, 0);	/ * wait for child to exit * /
+		} else {
+			/ * Child code. * /
+			execve(command, parameters, 0); / * execute command * /
+		}
+	}
+	================================================
+
+	most C programs contain the declaration 
+	main(argc,argv,envp)
+
+	argc: number of items specified on command
+	line
+
+	argv: pointer to an array storing the items 
+	specified on the command line
+
+	envp: pointer to the environment, which
+	is an array of strings of form key=value 
+	which give information about things such
+	as terminal type, and home directory name.
+
+	
+	Processes in MINIX have their memory divided into
+	three different sections, these being:
+
+	text segment(program code):
+	data segment(variables):
+	stack segment:
+	
+	the data segment grows upward, the stack
+	segment grows downward, and in-between them is 
+	a gap of unallocated memory that the stack
+	fills into. expansion of the data segment 
+	requires a system call 'brk' which specifies
+	the new address where the data segment is to
+	end. If the value is greater, the data segment
+	is growing, if it is smaller, the data segment
+	is shrinking. This value must be smaller than 
+	the stack pointer, otherwise the stack and 
+	data segments would overlap which cannot 
+	happen.
+
+	|------------| FFFF
+	| Stack      |
+	|------------|
+	| free space |
+	|------------|
+	| Data       |
+	|------------|
+	| Text       |
+	|------------| 0000
+
+	
+	'sbrk' is a library routine that grows or
+	shrinks the data segment based on the number 
+	of bytes specified in the parameter.
+
+	brk and sbrk are not defined by the POSIX 
+	standard.
+
+	instead programmers should use malloc to 
+	dynamically allocate storage.
+
+	
+	Sys Calls for Signaling
+	============================================
+	
+	s = sigaction(sig, &act, &oldact) 	Define action to take on signals
+
+	- a process must announce that it is willing
+	to accept a certain signal, otherwise it
+	will be terminated upon receiving the 
+	signal.
+	
+	s = sigreturn(&context) 		Return from a signal
+
+	s = sigprocmask(how, &set, &old) 	Examine or change the signal mask
+
+	- used to block signals, gives kernel a 
+	bitmap of signals to be blocked.
+
+	s = sigpending(set) 			Get the set of blocked signals
+
+	s = sigsuspend(sigmask) 		Replace the signal mask and suspend the process
+
+	s = kill(pid, sig) 			Send a signal to a process
+
+	residual = alarm(seconds) 		Set the alarm clock
+
+	s = pause() 				Suspend the caller until the next signal
+
+	situations exist where unexpected interprocess
+	communication is necessary. Signals fill
+	this need. ctrl c is an example of a signal.
+
+
+	System Calls for File Management
+	===============================================
+	
+	fd = creat(name, mode) 			Obsolete way to create a new file
+	fd = mknod(name, mode, addr) 		Create a regular, special, or directory i-node
+	
+	- creates a special file such as a device
+	fails if user is not superuser.
+
+	fd = open(file, how, ...) 		Open a file for reading, writing or both
+
+	- opens a file and returns file descriptor
+	for writing or reading. must close file
+	after reading or writing, which allows the
+	file descriptor to be reused for future
+	operations.
+
+	s = close(fd) 				Close an open file
+	n = read(fd, buffer, nbytes) 		Read data from a file into a buffer
+	n = write(fd, buffer, nbytes) 		Write data from a buffer into a file
+	pos = lseek(fd, offset, whence) 	Move the file pointer
+	s = stat(name, &buf) 			Get a file’s status information
+	s = fstat(fd, &buf) 			Get a file’s status information
+	fd = dup(fd) 				Allocate a new file descriptor for an open file
+	s = pipe(&fd[0]) 			Create a pipe
+	s = ioctl(fd, request, argp) 		Perform special operations on a file
+	s = access(name, amode) 		Check a file’s accessibility
+	s = rename(old, new) 			Give a file a new name
+	s = fcntl(fd, cmd, ...) 		File locking and other operations
+
+
+	most programs read and write programs
+	sequentially, however there are cases 
+	where random parts of a file must be read
+	or written to. each file has an associated
+	pointer which points to the current
+	position in the file. when reading or writing
+	sequentially the pointer usually points to 
+	the next byte to be read or written.
+	'lseek' can move this pointer. the value 
+	returned is the absolute location of the 
+	file after moving the pointer.
+
+	minix keeps track of multiple data about
+	a file(file mode(regular file, special file, 
+	directory, etc), size, time of the last 
+	modification, etc), which can be accessed 
+	using stat or fstat.
+
+	=============================================
+	structure returned from 'stat' and 'fstat'
+
+	struct stat {
+		short stdev; 			/ * device where i-node belongs * /
+		unsigned short stino; 		/ * i-node number * /
+		unsigned short stmode; 		/ * mode word * /
+		short stnlink; 			/ * number of links * /
+		short stuid; 			/ * user id * /
+		short stgid; 			/ * group id * /
+		short strdev; 			/ * major/minor device for special files * /
+		long stsize; 			/ * file size * /
+		long statime; 			/ * time of last access * /
+		long stmtime; 			/ * time of last modification * /
+		long stctime; 			/ * time of last change to i-node * /
+	};
+
+	=============================================
+
+	'dup' manipulates file descriptors, allowing
+	files to substitute different standard file
+	streams. This allows us to substitute a file
+	for stdout for example, and write to stdout which
+	actually is writing to the substituted file.
+	
+	fd = dup(1);
+
+	this will assign the file descriptor 'fd' to 
+	the standard output (file descriptor 1) then
+	standard output can be closed and a new file
+	opened and used. when time to restore to 
+	original situation, fd 1 can be closed and then
+
+	n = dup(fd);
+
+	which will assign the n file descriptor (1 in this
+	case) to the same file as fd. then fd can be closed
+	and we are back at the original situation.
+
+	'pipe' sys call creates a pipe and returns two file 
+	descriptors, one for writing and one for reading.
+
+	pipe(&fd[o]);
+
+	usually a fork comes next, where the parent 
+	closes the file descriptor for reading or writing
+	and the child closes it for the opposite, this
+	lets one process read the pipe and the other 
+	write to it.
+
+	================================================
+	skeleton for setting up two process pipeline
+
+	#define STDINPUT 0 		/ * file descriptor for standard input * /
+	#define STDOUTPUT 1 		/ * file descriptor for standard output * /
+	pipeline(process1, process2)
+	char *process1, *process2; 	/ * pointers to program names * /
+	{
+		int fd[2];
+		pipe(&fd[0]); 		/ * create a pipe * /
+		if (fork() != 0) {
+			/ * The parent process executes these statements. * /
+			close(fd[0]); 	/ * process 1 does not need to read from pipe * /
+			close(STD OUTPUT); / * prepare for new standard output * /
+			dup(fd[1]); 	/ * set standard output to fd[1] * /
+			close(fd[1]); 	/ * this file descriptor not needed any more * /
+			execl(process1, process1, 0);
+		} else {
+			/ * The child process executes these statements. * /
+			close(fd[1]); 	/ * process 2 does not need to write to pipe * /
+			close(STD INPUT); / * prepare for new standard input * /
+			dup(fd[0]); 	/ * set standard input to fd[0] * /
+			close(fd[0]); 	/ * this file descriptor not needed any more * /
+			execl(process2, process2, 0);
+		}
+	}
+	
+	===============================================
+
+	'ioctl' is usually used for special files
+
+	terminal modes
+
+	cooked mode: normal terminal mode, in which the erase
+	and kill characters work normally, CTRL-S and CTRL-Q 
+	can be used for stopping and starting termi-nal output,
+	CTRL-D means end of file, CTRL-C generates an 
+	interrupt signal, and CTRL-\ generates a quit 
+	signal to force a core dump.
+
+	raw mode: all of the above functions are disabled,
+	all characters are passed to the process with
+	no special processing. A read from the terminal in 
+	this mode will give all characters typed, even partial
+	lines.
+
+	Cbreak mode: in between. The erase and kill characters
+	for editing are disabled, as is CTRL-D, but CTRL-S, 
+	CTRL-Q, CTRL-C, and CTRL-\ are enabled.Like raw mode,
+	partial lines can be returned to programs
+	(if intraline editing is turned off there is no need
+	to wait until a whole line has been received—the user
+	cannot change his mind and delete it, as he can in cooked mode).
+
+	
+	System Calls for directory management
+	====================================================
+
+	s = mkdir(name, mode) 			Create a new directory
+	s = rmdir(name) 			Remove an empty directory
+	s = link(name1, name2) 			Create a new entry, name2, pointing to name1
+	s = unlink(name) 			Remove a directory entry
+	s = mount(special, name, flag) 		Mount a file system
+	s = umount(special) 			Unmount a file system
+	s = sync() 				Flush all cached blocks to the disk
+	s = chdir(dirname) 			Change the working directory
+	s = chroot(dirname) 			Change the root directory
+
+
+	link allows a file to appear in multiple different
+	directories. This is different from file copies 
+	as the different files point to the same file, 
+	allowing one edit of the file to cause the 'copies'
+	to reflect this edit instantly.
+
+	every file in unix has its i number, its unique number
+	identifying it. This number is an index into 
+	a table of 'i-nodes' which tell who owns the file,
+	where its disk blocks are, etc. A directory is 
+	simply a file containing a list of i-number, 
+	ASCII name pairs.
+	
+	Two users dirs before 'link'
+	/usr/ast
+	|----+-------|
+	| 16 | mail  |                
+	| 81 | games |
+	| 40 | test  |
+	|----+-------|
+					(A)
+	/usr/jim
+	|----+-------|
+	| 31 | bin   |
+	| 70 | memo  |
+	| 59 | f.c   |
+	| 38 | prog1 |
+	|----+-------|
+
+	
+	After linking /usr/jim/memo to ast's dir as note
+
+	/usr/ast
+	|----+-------|
+	| 16 | mail  |
+	| 81 | games |
+	| 40 | test  |
+	| 70 | note  |
+	|----+-------|
+					(B)
+	/usr/jim
+	|----+-------|
+	| 31 | bin   |
+	| 70 | memo  |
+	| 59 | f.c   |
+	| 38 | prog1 |
+	|----+-------|
+
+	
+
