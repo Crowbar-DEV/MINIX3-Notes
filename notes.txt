@@ -559,4 +559,202 @@ System Calls
 	|----+-------|
 
 	
+	Minix contains a block cache, which
+	allows blocks that may be frequently 
+	read to be accessed faster.
+
+	'sync' is a sys call that essentially 
+	flushes the block cache.
+
+
+	System calls for protection
+	==============================================
+
+	In the 11 bit protection field for a file, 2 of
+	these bits represent SETUID and SETGID, which 
+	allow a user to call a program, and have their
+	UID changed to that of the files owner for the
+	duration of the process. This allows normal users
+	to make calls to mknod for example under restricted
+	root privilege.
+
+
+Operating System Structure
+======================================================
+
+five designs to look over
+
+-monolithic
+-layered
+-virtual machines
+-exokernels
+-client-server
+
+
+	Monolithic Systems
+	==============================================
+	
+	"The big mess"
+
+	the structure is that there is no structure lmao
+
+	the system is written as a collection of procedures
+	procedures call other procedures, etc.
+
+	the compilation of a monolithic system follows, first
+	all procedures are compiled, then they are all
+	linked into a single object file which is the 
+	operating system. 
+
+	there is essentially no information hiding, all 
+	procedures are visible to eachother.
+
+	there can still be some structure, for example,
+	paramaters are put in well defined places such
+	as registers or on the stack, and then the call 
+	is made by making a special trap instruction
+	known as a 'kernel call' or a 'supervisor call'.
+	this switches the machine from user mode to 
+	kernel mode and gives full control to the 
+	operating system.
+
+
+
+Processes
+========================================================
+
+many processes run in pseudo-parallelism, the fast
+switching between processes gives the illusion of 
+parallelism. True parallelism means that processes are
+running at the same time in different processors.
+
+	process creation
+	================================================
+
+	four principle events that cause processes to
+	be created
+
+	1. system initialization
+	2. process creation sys call from running process
+	3. user request to create new process
+	4. initiation of a batch job
+
+	processes that run in the background handling 
+	some arbitrary task are called daemons.
+
+	process termination
+	===============================================
+
+	1. normal exit (voluntary)
+	2. error exit (voluntary)
+	3. fatal error (involuntary)
+	4. killed by another process (involuntary)
+
+
+	process hierarchies
+	===============================================
+
+	in some systems, when a process creates another 
+	process, the processes continue to be associated
+	in certain ways. This forms a process hierarchy.
+
+	in minix, a process and its children may form 
+	a process group. signals sent to a process in 
+	a group get sent to all processes within said
+	group.
+
+	boot process in minix contains the reincarnation
+	server, and the init process. The job of the
+	reincarnation server is to restart drivers and
+	other important things for the system, it begins
+	by blocking, waiting for a message telling it what
+	to create/restart. The init process sends messages 
+	to the reincarnation server, starting up servers
+	and utilities that are not present in the boot
+	image. Minix init makes these started servers/
+	processes children of the reincarnation server, 
+	so that if they are killed for some reason, the
+	reincarnation server is aware and can restart them 
+	if needed.
+
+	
+	Process States
+	================================================
+	
+	consider
+
+	cat chapter1 chapter2 chapter3 | grep tree
+
+	grep may be ready before the concatenation
+	is complete, meaning thst grep must 'block' until
+	its input is ready
+
+	Three states a process can be in 
+
+	1. Running (using the cpu at that instant)
+	2. Ready (runnable; temp stopped to let another
+	process run)
+	3. Blocked (unable to run until some external event)
+
+	in some systems, a process must call 'block' or
+	'pause' to enter the blocked state. In minix, when reading
+	from a pipe, the process is automatically blocked
+	until the input is available.
+
+
+	Implementation of Processes
+	====================================================
+
+	to actually implement processes in a system, the os
+	maintains a process table, where each entry corresponds
+	to a process.
+
+	each entry contains "information about the process’ state
+	, its program counter, stack pointer, memory alloca-
+	tion, the status of its open files, its accounting and
+	scheduling information, alarms and other signals,"
+
+
+	Broad picture of process Implementation
+
+	|-----------|
+	| Processes |
+	|-----------+---+-----+-----+-----|
+	| 0         | 1 | ... | n-2 | n-1 |
+	|-----------+---+-----+-----+-----|
+	| scheduler |
+	|-----------|
+
+
+	in minix the process table is partitioned, as interprocess
+	communication, memory management, and file management are
+	all handled by different modules. This allows the each 
+	module to maintain whatever fields it may need for a 
+	given process.
+
+|-----------------------------+----------------------------+--------------------------|
+| Kernel                      | Process management         | File management          |
+|-----------------------------+----------------------------+--------------------------|
+| Registers                   | Pointer to text segment    | UMASK mask               |
+| Program counter             | Pointer to data segment    | Root dir                 |
+| Program status word         | Pointer to bss segment     | Working dir              |
+| Stack Pointer               | Exit status                | File descriptors         |
+| Process state               | Signal Status              | Real ID                  |
+| Current scheduling priority | Process ID                 | Effective UID            |
+| Maximum scheduling priority | Parent process             | Real GID                 |
+| Scheduling ticks left       | Process group              | Effective GID            |
+| Quantum size                | Children's CPU time        | controlling tty          |
+| CPU time used               | Real UID                   | Save area for read/write |
+| Message queue pointers      | Effective UID              | Sys call params          |
+| Pending signal bits         | Real GID                   | Various flag bits        |
+| Various flag bits           | Effective GID              |                          |
+| Process Name                | File info for sharing text |                          |
+|                             | Bitmaps for signals        |                          |
+|                             | Various flag bits          |                          |
+|                             | Process name               |                          |
+|-----------------------------+----------------------------+--------------------------|
+
+	"Some of the fields of the MINIX 3 process table. The fields are dis-
+	tributed over the kernel, the process manager, and the file system."
+
 
